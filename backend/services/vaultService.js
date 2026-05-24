@@ -1,40 +1,28 @@
 import fs from "fs";
-import path from "path";
 import Resume from "../models/Resume.js";
 
-export const RESUMES_DIR = path.join(process.cwd(), "uploads", "resumes");
-
-if (!fs.existsSync(RESUMES_DIR)) {
-  fs.mkdirSync(RESUMES_DIR, { recursive: true });
-}
-
 export async function saveResume({ name, company, atsScore, file }) {
+  const fileData = fs.readFileSync(file.path).toString("base64");
+  fs.unlinkSync(file.path); // delete from disk after reading
+
   const entry = await Resume.create({
     name,
     company: company || "",
     atsScore: atsScore != null ? Number(atsScore) : null,
     filename: file.originalname,
-    filepath: `/uploads/resumes/${file.filename}`,
-    thumbnailPath: null,
+    fileData,
+    mimetype: file.mimetype || "application/pdf",
     createdAt: new Date(),
   });
   return entry;
 }
 
 export async function getAllResumes() {
-  return Resume.find().sort({ createdAt: -1 });
+  return Resume.find().select("-fileData").sort({ createdAt: -1 });
 }
 
 export async function deleteResume(id) {
   const doc = await Resume.findById(id);
   if (!doc) throw new Error("Resume not found");
-
-  // Strip leading slash so path.join works correctly on all platforms
-  const relative = doc.filepath.replace(/^[/\\]+/, "");
-  const fullPath = path.join(process.cwd(), relative);
-  if (fs.existsSync(fullPath)) {
-    fs.unlinkSync(fullPath);
-  }
-
   await Resume.findByIdAndDelete(id);
 }

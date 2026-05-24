@@ -5,8 +5,8 @@ const resumeSchema = new mongoose.Schema({
   company: { type: String, default: "" },
   atsScore: { type: Number, default: null },
   filename: { type: String, required: true },
-  filepath: { type: String, required: true },
-  thumbnailPath: { type: String, default: null },
+  fileData: { type: String, required: true }, // base64 PDF
+  mimetype: { type: String, default: "application/pdf" },
   createdAt: { type: Date, default: Date.now },
 });
 

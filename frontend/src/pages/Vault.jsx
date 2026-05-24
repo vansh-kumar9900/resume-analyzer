@@ -202,7 +202,7 @@ export default function Vault() {
                   {/* Actions */}
                   <div style={{ display: "flex", gap: 8, marginTop: "auto", paddingTop: 6 }}>
                     <a
-                      href={r.filepath}
+                      href={`${import.meta.env.VITE_API_BASE?.replace("/api","") || "http://localhost:5050"}/api/vault/${r._id}/pdf`}
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{

@@ -1,19 +1,13 @@
 import { Router } from "express";
 import multer from "multer";
 import path from "path";
+import os from "os";
 import { requireAuth } from "../middleware/authMiddleware.js";
-import { saveResume, getAllResumes, deleteResume, RESUMES_DIR } from "../services/vaultService.js";
+import { saveResume, getAllResumes, deleteResume } from "../services/vaultService.js";
 
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, RESUMES_DIR),
-  filename: (_req, file, cb) => {
-    const safe = `${Date.now()}-${file.originalname.replace(/\s+/g, "_")}`;
-    cb(null, safe);
-  },
-});
-
+// Store temporarily in system temp folder instead of disk
 const upload = multer({
-  storage,
+  dest: os.tmpdir(),
   fileFilter: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     if (ext === ".pdf") return cb(null, true);
@@ -43,6 +37,20 @@ router.get("/", async (req, res) => {
   try {
     const resumes = await getAllResumes();
     res.json(resumes);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// New route to serve PDF by id
+router.get("/:id/pdf", async (req, res) => {
+  try {
+    const doc = await (await import("../models/Resume.js")).default.findById(req.params.id);
+    if (!doc) return res.status(404).json({ message: "Resume not found" });
+    const buffer = Buffer.from(doc.fileData, "base64");
+    res.set("Content-Type", "application/pdf");
+    res.set("Content-Disposition", `inline; filename="${doc.filename}"`);
+    res.send(buffer);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
