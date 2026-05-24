@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import Navbar from "../components/Navbar.jsx";
-import { analyzeResume, atsScore, chatAI } from "../services/api.js";
+import { analyzeResume, atsScore, chatAI, saveToVault } from "../services/api.js";
 
 export default function Dashboard() {
   // ── Left panel state ───────────────────────────────────────────────────────
@@ -14,6 +14,13 @@ export default function Dashboard() {
   const [busy, setBusy]               = useState(""); // "analyze" | "ats" | ""
   const [dragging, setDragging]       = useState(false);
   const [activeTab, setActiveTab]     = useState("upload"); // "upload" | "results"
+
+  // ── Vault modal state ──────────────────────────────────────────────────────
+  const [vaultModal, setVaultModal]     = useState(false);
+  const [vaultName, setVaultName]       = useState("");
+  const [vaultCompany, setVaultCompany] = useState("");
+  const [vaultBusy, setVaultBusy]       = useState(false);
+  const [vaultMsg, setVaultMsg]         = useState(null); // { type: "ok"|"err", text }
 
   // ── Chat state ─────────────────────────────────────────────────────────────
   const [chatInput, setChatInput]     = useState("");
@@ -67,6 +74,34 @@ export default function Dashboard() {
 
   function onChatKey(e) {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); }
+  }
+
+  function openVaultModal() {
+    setVaultName("");
+    setVaultCompany("");
+    setVaultMsg(null);
+    setVaultModal(true);
+  }
+
+  async function handleSaveToVault(e) {
+    e.preventDefault();
+    if (!vaultName.trim()) return;
+    setVaultBusy(true);
+    setVaultMsg(null);
+    try {
+      await saveToVault({
+        file,
+        name: vaultName.trim(),
+        company: vaultCompany.trim(),
+        atsScore: ats?.matchingPercentage ?? null,
+      });
+      setVaultMsg({ type: "ok", text: "Saved to Resume Vault!" });
+      setTimeout(() => setVaultModal(false), 1200);
+    } catch (err) {
+      setVaultMsg({ type: "err", text: err.message });
+    } finally {
+      setVaultBusy(false);
+    }
   }
 
   return (
@@ -268,7 +303,7 @@ export default function Dashboard() {
                     </div>
                     {ats.notes && <p style={{ color: "#888", fontSize: 13, margin: "0 0 16px" }}>{ats.notes}</p>}
                     {ats.requiredSkills?.length > 0 && (
-                      <div>
+                      <div style={{ marginBottom: 20 }}>
                         <div style={{ color: "#aaa", fontSize: 13, marginBottom: 10, fontWeight: 600 }}>Required Skills from JD</div>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                           {ats.requiredSkills.map(s => (
@@ -276,6 +311,17 @@ export default function Dashboard() {
                           ))}
                         </div>
                       </div>
+                    )}
+                    {file && (
+                      <button onClick={openVaultModal}
+                        style={{ ...darkBtn("#1565c0"), display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                        <span>🗄</span> Save to Vault
+                      </button>
+                    )}
+                    {!file && (analysis || ats) && (
+                      <p style={{ color: "#555", fontSize: 12, margin: "8px 0 0" }}>
+                        Upload a PDF file to save this resume to the vault.
+                      </p>
                     )}
                   </div>
                 )}
@@ -298,6 +344,103 @@ export default function Dashboard() {
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
       `}</style>
+
+      {/* ── Vault Modal ──────────────────────────────────────────────────────── */}
+      {vaultModal && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 1000,
+          background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          padding: 20,
+        }} onClick={e => { if (e.target === e.currentTarget) setVaultModal(false); }}>
+          <div style={{
+            background: "#161618", border: "1px solid #2a2a2e",
+            borderRadius: 16, padding: "28px 32px", width: "100%", maxWidth: 440,
+            boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
+              <h3 style={{ color: "#e0e0e0", margin: 0, fontSize: 18, fontWeight: 700 }}>Save to Resume Vault</h3>
+              <button onClick={() => setVaultModal(false)}
+                style={{ background: "transparent", border: "none", color: "#666", fontSize: 20, cursor: "pointer", lineHeight: 1, padding: 0 }}>✕</button>
+            </div>
+
+            <form onSubmit={handleSaveToVault} style={{ display: "grid", gap: 16 }}>
+              <div>
+                <label style={{ color: "#888", fontSize: 12, display: "block", marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  Resume Name <span style={{ color: "#ef5350" }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={vaultName}
+                  onChange={e => setVaultName(e.target.value)}
+                  placeholder='e.g. "Google SWE", "Flipkart Backend"'
+                  required
+                  style={{
+                    ...darkInput,
+                    borderColor: vaultName.trim() ? "#2a2a2e" : "#2a2a2e",
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ color: "#888", fontSize: 12, display: "block", marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  Target Company <span style={{ color: "#555" }}>(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={vaultCompany}
+                  onChange={e => setVaultCompany(e.target.value)}
+                  placeholder="e.g. Google, Amazon, Flipkart"
+                  style={darkInput}
+                />
+              </div>
+
+              <div>
+                <label style={{ color: "#888", fontSize: 12, display: "block", marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  ATS Score
+                </label>
+                <div style={{
+                  ...darkInput,
+                  color: ats?.matchingPercentage != null
+                    ? (ats.matchingPercentage >= 70 ? "#4caf50" : ats.matchingPercentage >= 50 ? "#ff9800" : "#ef5350")
+                    : "#555",
+                  fontWeight: 700,
+                  pointerEvents: "none",
+                }}>
+                  {ats?.matchingPercentage != null ? `${ats.matchingPercentage}%` : "N/A"}
+                </div>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "#0f1f0f", borderRadius: 10, border: "1px solid #2d4a2d" }}>
+                <span style={{ fontSize: 18 }}>📄</span>
+                <span style={{ color: "#81c784", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file?.name}</span>
+              </div>
+
+              {vaultMsg && (
+                <div style={{
+                  padding: "10px 14px", borderRadius: 10, fontSize: 13,
+                  background: vaultMsg.type === "ok" ? "#0f2a0f" : "#2a1515",
+                  color: vaultMsg.type === "ok" ? "#81c784" : "#ef9090",
+                  border: `1px solid ${vaultMsg.type === "ok" ? "#2d4a2d" : "#4a2d2d"}`,
+                }}>
+                  {vaultMsg.type === "ok" ? "✓ " : "⚠ "}{vaultMsg.text}
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 12, marginTop: 4 }}>
+                <button type="submit" disabled={vaultBusy || !vaultName.trim()}
+                  style={{ ...darkBtn("#1565c0"), flex: 1, opacity: (vaultBusy || !vaultName.trim()) ? 0.5 : 1 }}>
+                  {vaultBusy ? "Saving..." : "Save to Vault"}
+                </button>
+                <button type="button" onClick={() => setVaultModal(false)}
+                  style={{ ...darkBtn("#2a2a2e"), flex: "none", padding: "11px 18px" }}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -337,3 +480,10 @@ function darkBtn(bg) {
     fontWeight: 600, fontSize: 14, cursor: "pointer",
   };
 }
+
+const darkInput = {
+  width: "100%", background: "#222226",
+  border: "1px solid #2a2a2e", borderRadius: 10,
+  padding: "10px 14px", color: "#e0e0e0", fontSize: 13,
+  outline: "none", fontFamily: "inherit", boxSizing: "border-box",
+};

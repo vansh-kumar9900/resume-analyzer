@@ -5,7 +5,7 @@ import { saveUserAnalysis } from "../services/userRepository.js";
 // Runs general resume analysis (JD optional)
 export async function analyze(req, res) {
   try {
-    const jd = req.body.jobDescription || "";
+    const jd = (req.body.jobDescription || "").trim();
     let resumeText = (req.body.resumeText || "").trim();
 
     if (req.file) {

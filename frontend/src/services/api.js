@@ -117,3 +117,41 @@ export async function chatAI({ message, resumeText, jobDescription }) {
   if (!res.ok) throw new Error(data.message || "Chat failed");
   return data;
 }
+
+// ── Vault API ────────────────────────────────────────────────────────────────
+
+export async function saveToVault({ file, name, company, atsScore }) {
+  const fd = new FormData();
+  fd.append("resume", file);
+  fd.append("name", name);
+  if (company) fd.append("company", company);
+  if (atsScore != null) fd.append("atsScore", String(atsScore));
+
+  const res = await fetch(`${API_BASE}/vault/save`, {
+    method: "POST",
+    headers: { ...authHeaders() },
+    body: fd,
+  });
+  const data = await parseJson(res);
+  if (!res.ok) throw new Error(data.message || "Failed to save to vault");
+  return data;
+}
+
+export async function getVaultResumes() {
+  const res = await fetch(`${API_BASE}/vault`, {
+    headers: { ...authHeaders() },
+  });
+  const data = await parseJson(res);
+  if (!res.ok) throw new Error(data.message || "Failed to load vault");
+  return data;
+}
+
+export async function deleteVaultResume(id) {
+  const res = await fetch(`${API_BASE}/vault/${id}`, {
+    method: "DELETE",
+    headers: { ...authHeaders() },
+  });
+  const data = await parseJson(res);
+  if (!res.ok) throw new Error(data.message || "Failed to delete resume");
+  return data;
+}

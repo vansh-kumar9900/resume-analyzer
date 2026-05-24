@@ -1,8 +1,10 @@
 import "dotenv/config.js";
 import express from "express";
 import cors from "cors";
+import path from "path";
 import authRoutes from "./routes/authRoutes.js";
 import resumeRoutes from "./routes/resumeRoutes.js";
+import vaultRoutes from "./routes/vaultRoutes.js";
 import { connectDB } from "./config/db.js";
 
 if (!process.env.JWT_SECRET) {
@@ -34,9 +36,13 @@ app.use(
 );
 app.use(express.json());
 
+// Serve uploaded vault resumes as static files
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+
 // Route groups
 app.use("/api/auth", authRoutes);
 app.use("/api/resume", resumeRoutes);
+app.use("/api/vault", vaultRoutes);
 
 // Simple health check for debugging
 app.get("/api/health", (req, res) => {

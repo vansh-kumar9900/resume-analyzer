@@ -22,6 +22,7 @@ export default function Navbar({ dark }) {
           {loggedIn ? (
             <>
               <Link to="/dashboard" style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${border}`, color: muted, fontSize: 13, fontWeight: 600 }}>Dashboard</Link>
+              <Link to="/vault" style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${border}`, color: dark ? "#81c784" : "#2e7d32", fontSize: 13, fontWeight: 600 }}>Resume Vault</Link>
               <button onClick={logout} style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${border}`, background: "transparent", color: muted, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Logout</button>
             </>
           ) : (

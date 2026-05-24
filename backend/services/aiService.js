@@ -1,10 +1,15 @@
 // AI Service — NVIDIA NIM (Llama 3.1) with smart fallback
 
-const NVIDIA_API_KEY = (process.env.NVIDIA_API_KEY || "").trim();
-const NVIDIA_MODEL   = (process.env.NVIDIA_MODEL   || "meta/llama-3.1-8b-instruct").trim();
-const NVIDIA_BASE    = "https://integrate.api.nvidia.com/v1";
+const NVIDIA_MODEL = (process.env.NVIDIA_MODEL || "meta/llama-3.1-8b-instruct").trim();
+const NVIDIA_BASE  = "https://integrate.api.nvidia.com/v1";
+
+// Read the key at call-time so dotenv is guaranteed to have loaded first
+function getNvidiaKey() {
+  return (process.env.NVIDIA_API_KEY || "").trim();
+}
 
 async function callNvidia(messages, temperature = 0.4) {
+  const NVIDIA_API_KEY = getNvidiaKey();
   if (!NVIDIA_API_KEY) return null;
 
   const res = await fetch(`${NVIDIA_BASE}/chat/completions`, {
@@ -32,10 +37,17 @@ async function callNvidia(messages, temperature = 0.4) {
 }
 
 function cleanJSON(raw) {
-  return raw
+  // Strip markdown fences
+  let s = raw
     .replace(/^```(?:json)?[\r\n]*/i, "")
-    .replace(/```[\r\n]*$/,           "")
+    .replace(/```[\r\n]*$/, "")
     .trim();
+
+  // If the LLM wrapped the JSON in prose, extract the first {...} or [...] block
+  const objMatch = s.match(/\{[\s\S]*\}/);
+  if (objMatch) s = objMatch[0];
+
+  return s;
 }
 
 // ─── Resume Analysis ──────────────────────────────────────────────────────────
@@ -81,8 +93,28 @@ export async function matchATS(resumeText, jobDescription) {
   if (!resumeText?.trim())     throw new Error("Resume text is empty");
   if (!jobDescription?.trim()) throw new Error("Job description is required");
 
-  const sysPrompt =
-    'You are an ATS matcher. Respond ONLY with a valid JSON object — no markdown fences, no extra text. Keys: "requiredSkills" (array of strings), "matchingPercentage" (number 0-100), "notes" (one short string).';
+  const sysPrompt = [
+    "You are a strict, objective ATS (Applicant Tracking System) scoring engine.",
+    "Your ONLY job is to compare the resume against the job description and return an honest score.",
+    "",
+    "SCORING RUBRIC — follow this exactly:",
+    "  0-15  : Resume is blank, near-blank, or completely unrelated to the JD",
+    "  16-35 : Very few matching skills; most required qualifications are absent",
+    "  36-55 : Some overlap but significant gaps; fewer than half the requirements are met",
+    "  56-70 : Decent match; candidate meets roughly half to two-thirds of requirements",
+    "  71-85 : Strong match; most skills and experience align with the JD",
+    "  86-100: Near-perfect match; almost all requirements are clearly demonstrated",
+    "",
+    "MANDATORY RULES:",
+    "  - Do NOT be encouraging, charitable, or give benefit of the doubt.",
+    "  - If the resume text is sparse or blank, the score MUST be below 20.",
+    "  - If the resume has no evidence of the required skills, score below 30.",
+    "  - Only award a score above 70 when there is substantial, explicit evidence in the resume.",
+    "  - Do NOT infer skills that are not explicitly present in the resume text.",
+    "",
+    'Respond ONLY with a valid JSON object. No markdown, no prose, no extra text.',
+    'Keys: "requiredSkills" (string array of skills extracted from the JD), "matchingPercentage" (integer 0-100), "notes" (one short objective sentence explaining the score).',
+  ].join("\n");
 
   const userPrompt =
     `Resume:\n${resumeText.slice(0, 12000)}\n\nJob Description:\n${jobDescription.slice(0, 8000)}`;
@@ -102,8 +134,14 @@ export async function matchATS(resumeText, jobDescription) {
   const req     = guessSkills(jobDescription).slice(0, 8);
   const has     = new Set(guessSkills(resumeText).map(s => s.toLowerCase()));
   const matched = req.filter(s => has.has(s.toLowerCase()));
-  const pct     = req.length ? Math.round((matched.length / req.length) * 100) : 65;
-  return { requiredSkills: req, matchingPercentage: Math.min(98, Math.max(30, pct)), notes: "Heuristic score — NVIDIA key active but fell back." };
+  // When no recognizable skills exist in the JD, we can't measure match — default to 0, not 65
+  const pct = req.length ? Math.round((matched.length / req.length) * 100) : 0;
+  // No artificial floor: a blank/mismatched resume should score near 0, not 30
+  return {
+    requiredSkills: req,
+    matchingPercentage: Math.min(98, pct),
+    notes: `Heuristic score (LLM unavailable): ${matched.length}/${req.length} recognized skills matched.`,
+  };
 }
 
 // ─── Chat ─────────────────────────────────────────────────────────────────────

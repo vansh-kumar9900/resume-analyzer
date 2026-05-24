@@ -3,6 +3,7 @@ import Landing from "./pages/Landing.jsx";
 import Login from "./pages/Login.jsx";
 import Signup from "./pages/Signup.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
+import Vault from "./pages/Vault.jsx";
 import { getToken } from "./services/api.js";
 
 // Stops guests from opening the dashboard
@@ -23,6 +24,14 @@ export default function App() {
         element={
           <PrivateRoute>
             <Dashboard />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/vault"
+        element={
+          <PrivateRoute>
+            <Vault />
           </PrivateRoute>
         }
       />
