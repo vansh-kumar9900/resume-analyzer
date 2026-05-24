@@ -2,10 +2,10 @@ import { Router } from "express";
 import multer from "multer";
 import path from "path";
 import os from "os";
+import Resume from "../models/Resume.js";
 import { requireAuth } from "../middleware/authMiddleware.js";
 import { saveResume, getAllResumes, deleteResume } from "../services/vaultService.js";
 
-// Store temporarily in system temp folder instead of disk
 const upload = multer({
   dest: os.tmpdir(),
   fileFilter: (_req, file, cb) => {
@@ -18,14 +18,11 @@ const upload = multer({
 
 const router = Router();
 
-router.use(requireAuth);
-
-router.post("/save", upload.single("resume"), async (req, res) => {
+router.post("/save", requireAuth, upload.single("resume"), async (req, res) => {
   try {
     const { name, company, atsScore } = req.body;
     if (!name?.trim()) return res.status(400).json({ message: "Resume name is required" });
     if (!req.file) return res.status(400).json({ message: "PDF file is required" });
-
     const entry = await saveResume({ name: name.trim(), company, atsScore, file: req.file });
     res.json(entry);
   } catch (err) {
@@ -33,7 +30,7 @@ router.post("/save", upload.single("resume"), async (req, res) => {
   }
 });
 
-router.get("/", async (req, res) => {
+router.get("/", requireAuth, async (req, res) => {
   try {
     const resumes = await getAllResumes();
     res.json(resumes);
@@ -42,10 +39,9 @@ router.get("/", async (req, res) => {
   }
 });
 
-// New route to serve PDF by id
 router.get("/:id/pdf", async (req, res) => {
   try {
-    const doc = await (await import("../models/Resume.js")).default.findById(req.params.id);
+    const doc = await Resume.findById(req.params.id);
     if (!doc) return res.status(404).json({ message: "Resume not found" });
     const buffer = Buffer.from(doc.fileData, "base64");
     res.set("Content-Type", "application/pdf");
@@ -56,7 +52,7 @@ router.get("/:id/pdf", async (req, res) => {
   }
 });
 
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requireAuth, async (req, res) => {
   try {
     await deleteResume(req.params.id);
     res.json({ ok: true });
